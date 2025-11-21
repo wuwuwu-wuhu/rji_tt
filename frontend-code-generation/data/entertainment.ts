@@ -1,0 +1,108 @@
+import { BookOpen, Film, Gamepad2, MapPin } from "lucide-react"
+import type { Recommendation } from "@/types/entertainment"
+
+export const entertainmentSeed: Recommendation[] = [
+  {
+    id: 1,
+    type: "movie",
+    title: "Everything Everywhere All At Once",
+    subtitle: "Sci-fi / Adventure",
+    description:
+      "A middle-aged Chinese immigrant is swept up into an insane adventure in which she alone can save the existence by exploring other universes connecting with the lives she could have led.",
+    rating: 4.8,
+    image: "bg-purple-100",
+    icon: Film,
+    color: "text-purple-600",
+    liked: false,
+  },
+  {
+    id: 2,
+    type: "book",
+    title: "Atomic Habits",
+    subtitle: "James Clear",
+    description:
+      "No matter your goals, Atomic Habits offers a proven framework for improving--every day. James Clear reveals practical strategies to form good habits, break bad ones, and master tiny behaviors that lead to remarkable results.",
+    rating: 4.9,
+    image: "bg-amber-100",
+    icon: BookOpen,
+    color: "text-amber-600",
+    liked: true,
+  },
+  {
+    id: 3,
+    type: "activity",
+    title: "Sunset Yoga at the Park",
+    subtitle: "Outdoor / Wellness",
+    description:
+      "Join us for a relaxing evening of yoga as the sun sets. Perfect for beginners and experienced yogis alike. Bring your own mat and water bottle.",
+    rating: 4.7,
+    image: "bg-emerald-100",
+    icon: MapPin,
+    color: "text-emerald-600",
+    liked: false,
+  },
+  {
+    id: 4,
+    type: "game",
+    title: "Stardew Valley",
+    subtitle: "Simulation / RPG",
+    description:
+      "You've inherited your grandfather's farm plot. Armed with hand-me-down tools, you set out to begin your new life. Can you turn these overgrown fields into a thriving home?",
+    rating: 4.9,
+    image: "bg-blue-100",
+    icon: Gamepad2,
+    color: "text-blue-600",
+    liked: false,
+  },
+  {
+    id: 5,
+    type: "movie",
+    title: "Dune: Part Two",
+    subtitle: "Sci-fi / Epic",
+    description: "Paul Atreides unites with Chani and the Fremen while on a warpath of revenge against conspirators.",
+    rating: 4.9,
+    image: "bg-orange-100",
+    icon: Film,
+    color: "text-orange-600",
+    liked: true,
+  },
+  {
+    id: 6,
+    type: "book",
+    title: "Project Hail Mary",
+    subtitle: "Andy Weir",
+    description:
+      "Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and Earth itself will perish.",
+    rating: 4.8,
+    image: "bg-indigo-100",
+    icon: BookOpen,
+    color: "text-indigo-600",
+    liked: false,
+  },
+  {
+    id: 7,
+    type: "activity",
+    title: "Pottery Workshop",
+    subtitle: "Art / Creative",
+    description: "Learn the basics of wheel throwing and hand building in this beginner-friendly pottery workshop.",
+    rating: 4.8,
+    image: "bg-stone-100",
+    icon: MapPin,
+    color: "text-stone-600",
+    liked: true,
+  },
+  {
+    id: 8,
+    type: "game",
+    title: "Baldur's Gate 3",
+    subtitle: "RPG / Adventure",
+    description:
+      "Gather your party and return to the Forgotten Realms in a tale of fellowship and betrayal, sacrifice and survival.",
+    rating: 4.9,
+    image: "bg-red-100",
+    icon: Gamepad2,
+    color: "text-red-700",
+    liked: false,
+  },
+]
+

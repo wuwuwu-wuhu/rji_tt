@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15
+    container_name: lifelog_postgres
+    environment:
+      POSTGRES_DB: lifelog_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend-code/scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: lifelog_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端API
+  backend:
+    build:
+      context: ./backend-code
+      dockerfile: Dockerfile
+    container_name: lifelog_backend
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/lifelog_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: your-super-secret-key-change-this-in-production
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend-code/uploads:/app/uploads
+    command: >
+      sh -c "
+        python setup_database.py &&
+        uvicorn main:app --host 0.0.0.0 --port 8000
+      "
+
+  # 前端应用
+  frontend:
+    build:
+      context: ./frontend-code-generation
+      dockerfile: Dockerfile
+    container_name: lifelog_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

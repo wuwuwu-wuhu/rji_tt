@@ -1,0 +1,26 @@
+{
+  "name": "lifelog-ai-mobile",
+  "version": "1.0.0",
+  "description": "LifeLog AI 移动端打包配置",
+  "scripts": {
+    "build:frontend": "chmod +x scripts/build-frontend.sh && ./scripts/build-frontend.sh",
+    "build:full": "chmod +x scripts/build-full.sh && ./scripts/build-full.sh",
+    "build:all": "npm run build:frontend && npm run build:full",
+    "clean": "rm -rf output/* frontend-only/android full-app/android",
+    "setup": "npm install && mkdir -p output"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.0.0",
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/android": "^5.0.0"
+  },
+  "keywords": [
+    "lifelog",
+    "ai",
+    "mobile",
+    "apk",
+    "capacitor"
+  ],
+  "author": "LifeLog AI Team",
+  "license": "MIT"
+}

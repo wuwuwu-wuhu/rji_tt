@@ -105,10 +105,22 @@ export function ProfileView() {
     if (!avatarFile) return null
 
     try {
+      console.log('\n🔍 [头像上传] 开始上传头像:')
+      console.log('   📁 文件名:', avatarFile.name)
+      console.log('   📊 文件大小:', avatarFile.size)
+      console.log('   📄 文件类型:', avatarFile.type)
+      
       const formData = new FormData()
-      formData.append('avatar', avatarFile)
+      formData.append('file', avatarFile)  // 后端API期望的字段名是'file'
 
-      const response = await fetch('/api/upload/avatar', {
+      // 使用正确的后端API URL
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const uploadUrl = `${API_BASE_URL}/api/upload/avatar`
+      
+      console.log('   🌐 上传URL:', uploadUrl)
+      console.log('   🔐 认证令牌状态:', authService.getAuthToken() ? '已设置' : '未设置')
+
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
         headers: {
@@ -116,17 +128,23 @@ export function ProfileView() {
         }
       })
 
+      console.log('   📊 响应状态码:', response.status)
+      console.log('   ✅ 响应状态:', response.ok ? '成功' : '失败')
+
       if (!response.ok) {
-        throw new Error('头像上传失败')
+        const errorData = await response.json().catch(() => ({}))
+        console.log('   ❌ 错误详情:', errorData)
+        throw new Error(errorData.detail || errorData.message || '头像上传失败')
       }
 
       const result = await response.json()
+      console.log('   ✅ 上传成功:', result)
       return result.url
     } catch (error) {
-      console.error('头像上传失败:', error)
+      console.error('\n❌ [头像上传] 头像上传失败:', error)
       toast({
         title: "头像上传失败",
-        description: "请稍后重试",
+        description: error instanceof Error ? error.message : "请稍后重试",
         variant: "destructive"
       })
       return null
@@ -296,7 +314,10 @@ export function ProfileView() {
               <div className="space-y-6">
                 <div className="flex items-center space-x-6">
                   <Avatar className="h-24 w-24">
-                    <AvatarImage src={avatarPreview} alt="用户头像" />
+                    <AvatarImage
+                      src={avatarPreview ? (avatarPreview.startsWith('http') ? avatarPreview : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${avatarPreview}`) : undefined}
+                      alt="用户头像"
+                    />
                     <AvatarFallback className="text-2xl">
                       {user?.full_name?.charAt(0) || user?.email?.charAt(0) || "U"}
                     </AvatarFallback>

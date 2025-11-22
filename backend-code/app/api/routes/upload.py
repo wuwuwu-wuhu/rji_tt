@@ -89,14 +89,18 @@ async def upload_avatar(
         unique_filename = generate_unique_filename(file.filename)
         file_path = os.path.join(upload_dir, unique_filename)
         
+        # 确保使用正斜杠路径分隔符（Web标准）
+        web_path = file_path.replace("\\", "/")
+        
         print(f"   💾 保存路径: {file_path}")
+        print(f"   🌐 Web路径: {web_path}")
         
         # 保存文件
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
         
-        # 生成访问URL
-        avatar_url = f"/{file_path}"
+        # 生成访问URL（使用正斜杠）
+        avatar_url = f"/{web_path}"
         
         # 更新用户头像URL
         current_user.avatar_url = avatar_url

@@ -818,7 +818,10 @@ export function SettingsView() {
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
         <div className="flex items-center gap-4 mb-4">
           <Avatar className="h-16 w-16 border-2 border-white shadow-sm">
-            <AvatarImage src={user?.avatar_url || "/placeholder-user.jpg"} />
+            <AvatarImage
+              src={user?.avatar_url ? (user.avatar_url.startsWith('http') ? user.avatar_url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${user.avatar_url}`) : "/placeholder-user.jpg"}
+              alt="用户头像"
+            />
             <AvatarFallback className="bg-stone-200 text-stone-600 text-xl">
               {user?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U"}
             </AvatarFallback>

@@ -75,7 +75,7 @@ async def update_assistant_config(
     return assistant_config.update_with_user(db, db_obj=config, obj_in=config_update)
 
 
-@router.delete("/assistants/{config_id}", status_code=204)
+@router.delete("/assistants/{config_id}")
 async def delete_assistant_config(
     config_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -85,4 +85,34 @@ async def delete_assistant_config(
     config = assistant_config.get(db, config_id)
     if not config or config.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Assistant config not found")
+    
+    # 检查是否为默认配置
+    if config.is_default:
+        raise HTTPException(status_code=400, detail="Cannot delete default configuration")
+    
     assistant_config.remove(db, id=config_id)
+    return {"message": "Assistant config deleted successfully"}
+
+
+@router.post("/assistants/{config_id}/set-default")
+async def set_default_assistant_config(
+    config_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """设置默认AI助手配置"""
+    # 验证配置存在且属于当前用户
+    config = assistant_config.get(db, config_id)
+    if not config or config.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Assistant config not found")
+    
+    # 先取消所有默认配置
+    db.query(assistant_config.model).filter(
+        assistant_config.model.user_id == current_user.id
+    ).update({"is_default": False})
+    
+    # 设置新的默认配置
+    config.is_default = True
+    db.commit()
+    
+    return {"message": "Default config set successfully"}

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # 数据库配置
-    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/lifelog_db"
+    DATABASE_URL: str = "sqlite:///./lifelog_ai.db"
 
     # Redis配置
     REDIS_URL: str = "redis://localhost:6379/0"

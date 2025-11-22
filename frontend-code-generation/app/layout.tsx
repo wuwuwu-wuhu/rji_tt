@@ -3,6 +3,9 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google"
 import "./globals.css"
 import { AppLayout } from "@/components/layout/app-layout"
+import { AuthProvider } from "@/contexts/auth-context"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { Toaster } from "@/components/ui/toaster"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,7 +42,12 @@ export default function RootLayout({
           backgroundSize: "24px 24px",
         }}
       >
-        <AppLayout>{children}</AppLayout>
+        <ErrorBoundary>
+          <AuthProvider>
+            <AppLayout>{children}</AppLayout>
+            <Toaster />
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

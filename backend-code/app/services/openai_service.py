@@ -5,9 +5,9 @@ from app.core.redis import RedisCache
 
 
 class OpenAIService:
-    def __init__(self):
-        self.api_key = settings.OPENAI_API_KEY
-        self.base_url = settings.OPENAI_BASE_URL
+    def __init__(self, api_key=None, base_url=None):
+        self.api_key = api_key or settings.OPENAI_API_KEY
+        self.base_url = base_url or settings.OPENAI_BASE_URL
         self.cache = RedisCache()
 
     async def chat_completion(
@@ -48,7 +48,7 @@ class OpenAIService:
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=30.0
+                timeout=120.0  # 增加超时时间到120秒，支持知识库数据
             )
             response.raise_for_status()
             result = response.json()
@@ -75,10 +75,28 @@ class OpenAIService:
                 "usage": response.get("usage")
             }
         except Exception as e:
-            return {
-                "status": "error",
-                "message": f"API connection failed: {str(e)}"
-            }
+            error_msg = str(e)
+            # 提供更详细的错误信息
+            if "401" in error_msg:
+                return {
+                    "status": "error",
+                    "message": "API密钥无效或未配置。请检查设置中的API密钥是否正确。"
+                }
+            elif "404" in error_msg:
+                return {
+                    "status": "error",
+                    "message": "API地址不正确。请检查供应商地址是否正确。"
+                }
+            elif "timeout" in error_msg.lower():
+                return {
+                    "status": "error",
+                    "message": "连接超时。请检查网络连接或API地址是否可访问。"
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"API连接失败: {error_msg}"
+                }
 
     async def get_models(self) -> List[str]:
         """获取可用模型列表"""

@@ -71,13 +71,19 @@ def delete_user(db: Session, user_id: int) -> bool:
     return True
 
 
-def authenticate_user(db: Session, username: str, password: str) -> User | None:
-    """验证用户"""
-    user = get_user_by_username(db, username)
+def authenticate_user(db: Session, username_or_email: str, password: str) -> User | None:
+    """验证用户（支持用户名或邮箱）"""
+    # 首先尝试按用户名查找
+    user = get_user_by_username(db, username_or_email)
+    
+    # 如果用户名不存在，尝试按邮箱查找
     if not user:
+        user = get_user_by_email(db, username_or_email)
+    
+    # 如果用户仍然不存在或密码错误，返回None
+    if not user or not verify_password(password, user.hashed_password):
         return None
-    if not verify_password(password, user.hashed_password):
-        return None
+    
     return user
 
 

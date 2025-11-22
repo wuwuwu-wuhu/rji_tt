@@ -1,17 +1,74 @@
 "use client"
 
+import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { ChevronLeft, Save, Clock, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { diaryService } from "@/lib/services/diary"
+import { useMutation } from "@/hooks/use-api"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
 
 export default function WriteDiaryPage() {
   const router = useRouter()
+  const titleRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLTextAreaElement>(null)
+  const [mood, setMood] = useState<string>('')
+  const [tags, setTags] = useState<string>('')
+  const [isPrivate, setIsPrivate] = useState<boolean>(false)
+
+  // 使用mutation hook处理保存操作
+  const { mutate: saveDiary, loading, error } = useMutation(
+    (data: { title: string; content: string; mood: string; tags?: string; is_private: boolean }) =>
+      diaryService.createDiary(data),
+    {
+      onSuccess: () => {
+        toast.success('日记保存成功')
+        router.push('/')
+      },
+      onError: (error) => {
+        toast.error(`保存失败: ${error.message}`)
+      }
+    }
+  )
 
   const handleSave = () => {
-    // In a real app, we would save the data here
-    // For now, we just navigate back to the list
-    router.push("/")
+    const title = titleRef.current?.value || ''
+    const content = contentRef.current?.value || ''
+
+    if (!content.trim()) {
+      toast.error('请输入日记内容')
+      return
+    }
+
+    saveDiary({
+      title,
+      content,
+      mood,
+      tags: tags || undefined,
+      is_private: isPrivate
+    })
   }
+
+  // 获取当前日期时间
+  const getCurrentDateTime = () => {
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+    const timeStr = now.toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    return { dateStr, timeStr }
+  }
+
+  const { dateStr, timeStr } = getCurrentDateTime()
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] flex flex-col">
@@ -24,12 +81,19 @@ export default function WriteDiaryPage() {
 
           <span className="font-semibold text-stone-800">写日记</span>
 
-          <button
+          <Button
             onClick={handleSave}
+            disabled={loading}
+            variant="ghost"
+            size="sm"
             className="p-2 -mr-2 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
           >
-            <Save className="w-5 h-5" />
-          </button>
+            {loading ? (
+              <div className="w-5 h-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            ) : (
+              <Save className="w-5 h-5" />
+            )}
+          </Button>
         </div>
       </header>
 
@@ -40,19 +104,48 @@ export default function WriteDiaryPage() {
           <div className="flex items-center gap-4 text-sm text-stone-400">
             <div className="flex items-center gap-1.5 bg-stone-50 px-3 py-1.5 rounded-full">
               <Calendar className="w-4 h-4" />
-              <span>2025年11月20日</span>
+              <span>{dateStr}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-stone-50 px-3 py-1.5 rounded-full">
               <Clock className="w-4 h-4" />
-              <span>14:30</span>
+              <span>{timeStr}</span>
             </div>
           </div>
 
+          {/* 日记设置 */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[150px]">
+              <Select value={mood} onValueChange={setMood}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择心情" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="happy">😊 开心</SelectItem>
+                  <SelectItem value="sad">😢 难过</SelectItem>
+                  <SelectItem value="angry">😠 生气</SelectItem>
+                  <SelectItem value="anxious">😰 焦虑</SelectItem>
+                  <SelectItem value="calm">😌 平静</SelectItem>
+                  <SelectItem value="excited">🤗 兴奋</SelectItem>
+                  <SelectItem value="tired">😴 疲惫</SelectItem>
+                  <SelectItem value="grateful">🙏 感激</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Input
+              placeholder="标签 (用逗号分隔)"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              className="flex-1 min-w-[200px]"
+            />
+          </div>
+
           {/* Title Input */}
-          <input
+          <Input
+            ref={titleRef}
             type="text"
             placeholder="标题 (可选)"
-            className="w-full bg-transparent text-2xl font-bold text-stone-800 placeholder:text-stone-300 border-none focus:ring-0 p-0"
+            className="text-2xl font-bold text-stone-800 placeholder:text-stone-300 border-none focus:ring-0 p-0 bg-transparent"
           />
 
           {/* Body Textarea with Lined Background */}
@@ -66,7 +159,8 @@ export default function WriteDiaryPage() {
                 opacity: 0.4,
               }}
             />
-            <textarea
+            <Textarea
+              ref={contentRef}
               placeholder="记录每一个值得铭记的瞬间..."
               className="w-full h-full min-h-[600px] bg-transparent text-lg leading-[40px] text-stone-700 placeholder:text-stone-300 border-none focus:ring-0 p-0 resize-none font-medium px-6 py-2"
               style={{
@@ -74,6 +168,20 @@ export default function WriteDiaryPage() {
                 backgroundColor: "#fffdf5",
               }}
             />
+          </div>
+
+          {/* 隐私设置 */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="private"
+              checked={isPrivate}
+              onChange={(e) => setIsPrivate(e.target.checked)}
+              className="rounded border-stone-300"
+            />
+            <label htmlFor="private" className="text-sm text-stone-600">
+              设为私密日记
+            </label>
           </div>
         </div>
       </main>

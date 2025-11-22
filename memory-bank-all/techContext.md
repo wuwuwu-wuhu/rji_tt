@@ -292,11 +292,47 @@
 - **多阶段构建**: 优化镜像大小
 - **健康检查**: 容器健康监控
 
-### 移动端打包
-- **Capacitor**: PWA到原生应用转换
-- **双APK策略**: 纯前端APK + 完整APK
-- **本地API服务**: 完整APK内置Flask API
-- **SQLite数据库**: 移动端本地数据存储
+### 移动端打包技术
+
+#### 打包策略
+- **双APK方案**:
+  - 纯前端APK：仅包含前端UI，连接远程API服务
+  - 完整APK：包含前端UI和本地API服务，支持离线使用
+- **打包技术**: Capacitor + PWA
+- **目标平台**: Android (可扩展到iOS)
+
+#### Capacitor配置
+- **纯前端APK配置**:
+  - App ID: `com.lifelog.ai.frontend`
+  - 服务器URL: 远程API服务器地址
+  - Web目录: `../../frontend-code-generation/out`
+  
+- **完整APK配置**:
+  - App ID: `com.lifelog.ai.full`
+  - 本地服务器: `http://localhost:8080`
+  - 内置API服务: Flask + SQLite
+  - 后台服务权限: WAKE_LOCK, FOREGROUND_SERVICE
+
+#### 本地API服务 (完整APK)
+- **技术栈**: Flask + SQLite + Python
+- **数据库**: SQLite本地数据库
+- **服务端口**: 8080
+- **启动方式**: Android应用启动时自动启动本地Python服务
+- **数据同步**: 支持本地SQLite与远程API数据同步
+
+#### 构建流程
+1. **前端构建**: Next.js → PWA → 静态文件
+2. **Capacitor初始化**: 配置应用信息和权限
+3. **Android平台添加**: 生成Android项目结构
+4. **本地API集成** (完整APK): 复制Python服务到assets
+5. **APK构建**: Gradle构建生成APK文件
+
+#### 移动端特性
+- **离线支持**: 完整APK支持离线使用
+- **本地存储**: SQLite数据库存储用户数据
+- **后台服务**: 本地API服务在后台运行
+- **数据同步**: 网络可用时与远程服务器同步
+- **权限管理**: 网络、存储、后台服务权限
 
 ### CI/CD
 - **GitHub Actions**: 持续集成和部署

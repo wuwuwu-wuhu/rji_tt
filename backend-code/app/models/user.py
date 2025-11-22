@@ -21,6 +21,7 @@ class User(Base):
 
     # 关系
     assistant_configs = relationship("AssistantConfig", back_populates="user")
+    agents = relationship("Agent", back_populates="user")
     diaries = relationship("Diary", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
     goals = relationship("Goal", back_populates="user")

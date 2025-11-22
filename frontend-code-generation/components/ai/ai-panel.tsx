@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeft, Maximize2, X, Send, Loader2 } from "lucide-react"
+import { ArrowLeft, Maximize2, X, Send, Loader2, Database, Bot } from "lucide-react"
 import { useAiAssistant } from "@/contexts/ai-assistant-context"
 import { ai, ChatRequest, ChatResponse } from "@/lib/services/ai"
+import { agentsService, Agent } from "@/lib/services/agents"
 import { cn } from "@/lib/utils"
 
 const MIN_WIDTH_RATIO = 0.25
@@ -21,6 +22,9 @@ export function AiPanel() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle')
   const [knowledgeBaseEnabled, setKnowledgeBaseEnabled] = useState(true)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [showAgentSelector, setShowAgentSelector] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const [panelTransform, setPanelTransform] = useState({ x: 0, y: 0 })
@@ -67,6 +71,121 @@ export function AiPanel() {
       }
     }
   }, [])
+
+  // 加载Agent列表
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const response = await agentsService.getAgents()
+        if (response.data) {
+          setAgents(response.data)
+          // 获取默认Agent
+          const defaultAgentResponse = await agentsService.getDefaultAgent()
+          if (defaultAgentResponse.data) {
+            setSelectedAgent(defaultAgentResponse.data)
+          } else if (response.data.length > 0) {
+            // 如果没有默认Agent，选择第一个
+            setSelectedAgent(response.data[0])
+          }
+        }
+      } catch (error) {
+        console.error('加载Agent失败:', error)
+      }
+    }
+    
+    if (enabled && isPanelOpen) {
+      loadAgents()
+    }
+  }, [enabled, isPanelOpen])
+
+  // 创建默认Agent
+  const createDefaultAgents = async () => {
+    try {
+      console.log('🔍 [AI面板] 开始创建默认Agent...')
+      
+      // 创建学习Agent
+      const learningAgent = await agentsService.createAgent({
+        name: '学习助手',
+        description: '专注于学习指导和知识分享的AI助手',
+        prompt: `你是一位专业的学习助手，专门帮助用户进行学习和知识管理。你的特点包括：
+
+1. **专业知识**：在多个学科领域都有深入的了解
+2. **教学方法**：能够用简单易懂的方式解释复杂概念
+3. **学习规划**：帮助用户制定合理的学习计划
+4. **问题解答**：耐心回答用户的学术问题
+5. **资源推荐**：推荐相关的学习资源和材料
+
+请始终保持专业、耐心和鼓励的态度，帮助用户实现学习目标。`,
+        icon: '📚',
+        is_active: true,
+        is_default: true
+      })
+      
+      if (learningAgent.data) {
+        console.log('✅ [AI面板] 学习助手创建成功')
+      }
+      
+      // 创建陪伴Agent
+      const companionAgent = await agentsService.createAgent({
+        name: '陪伴助手',
+        description: '温暖贴心的生活陪伴和情感支持',
+        prompt: `你是一位温暖贴心的陪伴助手，专门为用户提供情感支持和日常陪伴。你的特点包括：
+
+1. **情感支持**：理解用户的情感需求，提供温暖的回应
+2. **积极倾听**：认真倾听用户的想法和感受
+3. **生活建议**：提供实用的生活建议和解决方案
+4. **情绪调节**：帮助用户缓解压力和负面情绪
+5. **陪伴聊天**：进行轻松愉快的日常对话
+
+请始终保持温暖、理解和同理心，成为用户可以信赖的朋友。`,
+        icon: '💝',
+        is_active: true
+      })
+      
+      if (companionAgent.data) {
+        console.log('✅ [AI面板] 陪伴助手创建成功')
+      }
+      
+      // 创建计划Agent
+      const planningAgent = await agentsService.createAgent({
+        name: '计划助手',
+        description: '专业的目标规划和时间管理专家',
+        prompt: `你是一位专业的计划助手，专门帮助用户进行目标规划和时间管理。你的特点包括：
+
+1. **目标设定**：帮助用户设定明确、可实现的目标
+2. **计划制定**：制定详细的执行计划和时间表
+3. **进度跟踪**：帮助用户跟踪目标完成进度
+4. **时间管理**：提供高效的时间管理方法和技巧
+5. **问题解决**：识别计划执行中的问题并提供解决方案
+
+请始终保持专业、理性和有条理的态度，帮助用户提高效率和实现目标。`,
+        icon: '📅',
+        is_active: true
+      })
+      
+      if (planningAgent.data) {
+        console.log('✅ [AI面板] 计划助手创建成功')
+      }
+      
+      // 重新加载Agent列表
+      const response = await agentsService.getAgents()
+      if (response.data) {
+        setAgents(response.data)
+        // 设置默认Agent
+        const defaultAgent = response.data.find((agent: Agent) => agent.is_default)
+        if (defaultAgent) {
+          setSelectedAgent(defaultAgent)
+        } else if (response.data.length > 0) {
+          setSelectedAgent(response.data[0])
+        }
+      }
+      
+      console.log('🎉 [AI面板] 所有默认Agent创建完成')
+      
+    } catch (error) {
+      console.error('❌ [AI面板] 创建默认Agent失败:', error)
+    }
+  }
 
   const testConnection = async () => {
     setConnectionStatus('testing')
@@ -235,7 +354,8 @@ export function AiPanel() {
       const chatRequest: ChatRequest = {
         message: userMessage,
         session_id: sessionId || undefined,
-        use_knowledge_base: knowledgeBaseEnabled
+        use_knowledge_base: knowledgeBaseEnabled,
+        agent_id: selectedAgent?.id
       }
       
       // 🔍 AI聊天请求的详细调试信息
@@ -412,6 +532,110 @@ export function AiPanel() {
         </div>
 
         <div className="p-4 border-t border-stone-100 bg-white flex flex-col gap-3">
+          {/* Agent选择器 */}
+          <div className="flex items-center justify-between px-2 py-2 bg-stone-50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-stone-200 flex items-center justify-center">
+                <Bot className="w-3 h-3 text-stone-600" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-stone-700">AI助手</span>
+                <p className="text-xs text-stone-400">
+                  {selectedAgent ? `${selectedAgent.icon} ${selectedAgent.name}` :
+                   agents.length > 0 ? "选择助手" : "暂无助手"}
+                </p>
+              </div>
+            </div>
+            {agents.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowAgentSelector(!showAgentSelector)}
+                className="text-xs text-stone-500 hover:text-stone-700 transition-colors"
+              >
+                {showAgentSelector ? "收起" : "选择"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={createDefaultAgents}
+                className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full hover:bg-emerald-600 transition-colors"
+              >
+                创建默认助手
+              </button>
+            )}
+          </div>
+
+          {/* Agent选择面板 */}
+          {showAgentSelector && agents.length > 0 && (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {agents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    onClick={() => {
+                      setSelectedAgent(agent)
+                      setShowAgentSelector(false)
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
+                      selectedAgent?.id === agent.id
+                        ? "bg-white border border-stone-300 shadow-sm"
+                        : "hover:bg-stone-100"
+                    )}
+                  >
+                    <span className="text-lg">{agent.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-stone-700">{agent.name}</p>
+                      <p className="text-xs text-stone-400 truncate">{agent.description}</p>
+                    </div>
+                    {agent.is_default && (
+                      <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-1 rounded-full">默认</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 知识库开关 */}
+          <div className="flex items-center justify-between px-2 py-2 bg-stone-50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-stone-200 flex items-center justify-center">
+                <Database className="w-3 h-3 text-stone-600" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-stone-700">知识库</span>
+                <p className="text-xs text-stone-400">使用个人数据增强回答</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const newValue = !knowledgeBaseEnabled
+                setKnowledgeBaseEnabled(newValue)
+                // 保存到localStorage
+                const savedSettings = localStorage.getItem('app_settings')
+                const settings = savedSettings ? JSON.parse(savedSettings) : {}
+                settings.knowledgeBase = newValue
+                localStorage.setItem('app_settings', JSON.stringify(settings))
+              }}
+              className={cn(
+                "relative flex items-center w-12 h-6 rounded-full border border-stone-300 px-0.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.1em] transition-all",
+                knowledgeBaseEnabled
+                  ? "bg-emerald-500 border-emerald-500"
+                  : "bg-stone-200 border-stone-300",
+              )}
+              title={knowledgeBaseEnabled ? "关闭知识库" : "开启知识库"}
+            >
+              <span
+                className={cn(
+                  "absolute inset-y-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform",
+                  knowledgeBaseEnabled ? "translate-x-6" : "translate-x-0",
+                )}
+              />
+            </button>
+          </div>
+          
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

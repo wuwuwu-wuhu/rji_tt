@@ -1,4 +1,4 @@
-import { Book, Calendar, LayoutDashboard, Settings, Target, Sparkles } from "lucide-react"
+import { Book, Calendar, LayoutDashboard, Settings, Target, Sparkles, User } from "lucide-react"
 
 export const navItems = [
   {
@@ -25,6 +25,11 @@ export const navItems = [
     title: "娱乐",
     href: "/entertainment",
     icon: Sparkles,
+  },
+  {
+    title: "个人资料",
+    href: "/profile",
+    icon: User,
   },
   {
     title: "设置",

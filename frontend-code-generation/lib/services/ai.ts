@@ -6,6 +6,7 @@ export interface ChatRequest {
   session_id?: string;
   assistant_config_id?: number;
   use_knowledge_base?: boolean;
+  agent_id?: number;
 }
 
 export interface ChatResponse {

@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
 import uvicorn
+import os
 
-from app.api.routes import auth, users, settings, entertainment, goals, diary, schedule, ai
+from app.api.routes import auth, users, settings, entertainment, goals, diary, schedule, ai, agents, upload
 from app.core.config import settings as app_settings
 
 app = FastAPI(
@@ -39,6 +41,15 @@ app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(diary.router, prefix="/api/diary", tags=["diary"])
 app.include_router(schedule.router, prefix="/api/schedule", tags=["schedule"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
+app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
+
+# 静态文件服务
+uploads_dir = "uploads"
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():

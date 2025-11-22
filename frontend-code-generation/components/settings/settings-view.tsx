@@ -22,6 +22,9 @@ import {
   Sparkles,
   Loader2,
   Trash2,
+  Bot,
+  Plus,
+  Edit,
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -31,6 +34,7 @@ import { Input } from "@/components/ui/input"
 import { useAiAssistant } from "@/contexts/ai-assistant-context"
 import { useAuth } from "@/contexts/auth-context"
 import { ai, AssistantConfig, AssistantConfigCreate } from "@/lib/services/ai"
+import { agentsService, Agent } from "@/lib/services/agents"
 
 type BooleanSettingKey = "knowledgeBase" | "darkMode" | "notifications"
 
@@ -62,10 +66,23 @@ export function SettingsView() {
     study: false,
   })
 
+  const [showAgentPanel, setShowAgentPanel] = useState(false)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
+  const [showAgentForm, setShowAgentForm] = useState(false)
+  const [agentForm, setAgentForm] = useState({
+    name: '',
+    description: '',
+    prompt: '',
+    icon: '🤖',
+    is_active: true,
+    is_default: false
+  })
+
   const { enabled: aiPanelEnabled, setEnabled: setAiPanelEnabled } = useAiAssistant()
   const { user, logout } = useAuth()
 
-  // 加载已保存的配置
+  // 加载已保存的配置和设置
   useEffect(() => {
     const loadConfigs = async () => {
       try {
@@ -78,13 +95,61 @@ export function SettingsView() {
       }
     }
     
+    // 加载Agent列表
+    const loadAgents = async () => {
+      try {
+        console.log('🔍 [设置] 加载Agent列表...')
+        const response = await agentsService.getAgents()
+        if (response.data) {
+          console.log('✅ [设置] Agent列表加载成功:', response.data)
+          setAgents(response.data)
+        } else {
+          console.log('⚠️ [设置] Agent列表为空')
+          setAgents([])
+        }
+      } catch (error) {
+        console.error('❌ [设置] 加载Agent列表失败:', error)
+        setAgents([])
+      }
+    }
+    
+    // 加载设置
+    const loadSettings = () => {
+      const savedSettings = localStorage.getItem('app_settings')
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings)
+          setSettings(prev => ({
+            ...prev,
+            knowledgeBase: settings.knowledgeBase ?? true,
+            darkMode: settings.darkMode ?? false,
+            notifications: settings.notifications ?? true,
+          }))
+        } catch (error) {
+          console.error('解析设置失败:', error)
+        }
+      }
+    }
+    
     if (showApiKeyModal) {
       loadConfigs()
     }
-  }, [showApiKeyModal])
+    
+    if (showAgentPanel) {
+      loadAgents()
+    }
+    
+    loadSettings()
+  }, [showApiKeyModal, showAgentPanel])
 
   const handleSettingChange = (key: keyof typeof settings, value: any) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
+    
+    // 保存到localStorage
+    const savedSettings = localStorage.getItem('app_settings')
+    const settings = savedSettings ? JSON.parse(savedSettings) : {}
+    settings[key] = value
+    localStorage.setItem('app_settings', JSON.stringify(settings))
   }
 
   const handleTestConnection = async () => {
@@ -187,7 +252,34 @@ export function SettingsView() {
       const configData: AssistantConfigCreate = {
         name: `${modelName} 配置`,
         description: `供应商: ${vendorUrl}`,
-        prompt: "你是一个有用的AI助手，请根据用户的问题提供准确、有帮助的回答。",
+        prompt: `你是LifeLog AI智能助手，专门帮助用户记录、管理和优化个人生活。
+
+## 核心职责
+1. **生活记录助手**：帮助用户记录日记、管理日程、制定目标和学习计划
+2. **智能分析顾问**：基于用户数据提供个性化建议和洞察
+3. **情感支持伙伴**：理解用户情绪状态，提供温暖的支持和鼓励
+4. **效率提升专家**：帮助用户优化时间管理和生活习惯
+
+## 交互风格
+- 温暖友好，像贴心的朋友一样交流
+- 专业可靠，提供有价值的建议
+- 积极正面，鼓励用户持续进步
+- 尊重隐私，谨慎处理个人信息
+
+## 知识库使用
+当用户开启知识库功能时，你可以：
+- 参考用户的日记记录了解情绪变化
+- 结合日程安排提供时间管理建议
+- 基于目标设定给出个性化指导
+- 考虑学习计划提供相关资源推荐
+
+## 回答原则
+- 简洁明了，重点突出
+- 具体实用，避免空泛
+- 因人而异，个性化定制
+- 积极引导，正向激励
+
+记住：你不仅是工具，更是用户生活中的得力助手和温暖伙伴。`,
         model: modelName.trim(),
         temperature: "0.7",
         max_tokens: 2000,
@@ -347,6 +439,363 @@ export function SettingsView() {
     }
   }
 
+  // Agent管理功能
+  const handleCreateAgent = async () => {
+    try {
+      console.log('🔍 [设置] 开始创建Agent:', agentForm)
+      
+      // 验证必填字段
+      if (!agentForm.name.trim() || !agentForm.prompt.trim()) {
+        console.error('❌ [设置] 创建Agent失败: 缺少必填字段')
+        setConnectionStatus("error")
+        setConnectionMessage("请填写助手名称和系统提示词")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 3000)
+        return
+      }
+      
+      const response = await agentsService.createAgent(agentForm)
+      console.log('📥 [设置] 创建Agent响应:', response)
+      
+      if (response.data) {
+        console.log('✅ [设置] Agent创建成功:', response.data)
+        setAgents(prev => [response.data!, ...prev])
+        setShowAgentForm(false)
+        setAgentForm({
+          name: '',
+          description: '',
+          prompt: '',
+          icon: '🤖',
+          is_active: true,
+          is_default: false
+        })
+        
+        // 显示成功消息
+        setConnectionStatus("success")
+        setConnectionMessage("助手创建成功！")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 2000)
+      } else {
+        console.error('❌ [设置] 创建Agent失败: 无响应数据')
+        const errorMessage = response.error || '创建助手失败'
+        throw new Error(errorMessage)
+      }
+    } catch (error) {
+      console.error('❌ [设置] 创建Agent异常:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`创建失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    }
+  }
+
+  const handleUpdateAgent = async () => {
+    if (!editingAgent) return
+    
+    try {
+      console.log('🔍 [设置] 开始更新Agent:', editingAgent.id, agentForm)
+      
+      // 验证必填字段
+      if (!agentForm.name.trim() || !agentForm.prompt.trim()) {
+        console.error('❌ [设置] 更新Agent失败: 缺少必填字段')
+        setConnectionStatus("error")
+        setConnectionMessage("请填写助手名称和系统提示词")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 3000)
+        return
+      }
+      
+      const response = await agentsService.updateAgent(editingAgent.id, agentForm)
+      console.log('📥 [设置] 更新Agent响应:', response)
+      
+      if (response.data) {
+        console.log('✅ [设置] Agent更新成功:', response.data)
+        setAgents(prev => prev.map(agent =>
+          agent.id === editingAgent.id ? response.data! : agent
+        ))
+        setShowAgentForm(false)
+        setEditingAgent(null)
+        setAgentForm({
+          name: '',
+          description: '',
+          prompt: '',
+          icon: '🤖',
+          is_active: true,
+          is_default: false
+        })
+        
+        // 显示成功消息
+        setConnectionStatus("success")
+        setConnectionMessage("助手更新成功！")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 2000)
+      } else {
+        console.error('❌ [设置] 更新Agent失败: 无响应数据')
+        const errorMessage = response.error || '更新助手失败'
+        throw new Error(errorMessage)
+      }
+    } catch (error) {
+      console.error('❌ [设置] 更新Agent异常:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`更新失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    }
+  }
+
+  const handleDeleteAgent = async (agentId: number) => {
+    try {
+      console.log('🔍 [设置] 开始删除Agent:', agentId)
+      
+      await agentsService.deleteAgent(agentId)
+      console.log('✅ [设置] Agent删除成功')
+      
+      setAgents(prev => prev.filter(agent => agent.id !== agentId))
+      
+      // 显示成功消息
+      setConnectionStatus("success")
+      setConnectionMessage("助手删除成功！")
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 2000)
+    } catch (error) {
+      console.error('❌ [设置] 删除Agent异常:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`删除失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    }
+  }
+
+  const handleSetDefaultAgent = async (agentId: number) => {
+    try {
+      console.log('🔍 [设置] 开始设置默认Agent:', agentId)
+      
+      const response = await agentsService.setDefaultAgent(agentId)
+      console.log('📥 [设置] 设置默认Agent响应:', response)
+      
+      if (response.data) {
+        console.log('✅ [设置] 默认Agent设置成功')
+        setAgents(prev => prev.map(agent => ({
+          ...agent,
+          is_default: agent.id === agentId
+        })))
+        
+        // 显示成功消息
+        setConnectionStatus("success")
+        setConnectionMessage("默认助手设置成功！")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 2000)
+      } else {
+        console.error('❌ [设置] 设置默认Agent失败: 无响应数据')
+        const errorMessage = response.error || '设置默认助手失败'
+        throw new Error(errorMessage)
+      }
+    } catch (error) {
+      console.error('❌ [设置] 设置默认Agent异常:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`设置失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    }
+  }
+
+  const handleEditAgent = (agent: Agent) => {
+    setEditingAgent(agent)
+    setAgentForm({
+      name: agent.name,
+      description: agent.description || '',
+      prompt: agent.prompt,
+      icon: agent.icon,
+      is_active: agent.is_active,
+      is_default: agent.is_default
+    })
+    setShowAgentForm(true)
+  }
+
+  const handleCreateDefaultAgents = async () => {
+    try {
+      console.log('🔍 [设置] 开始创建默认Agent...')
+      
+      let createdCount = 0
+      
+      // 创建学习Agent
+      console.log('   📚 创建学习Agent...')
+      const learningAgent = await agentsService.createAgent({
+        name: '学习助手',
+        description: '专注于学习指导和知识分享的AI助手',
+        prompt: `你是一位专业的学习助手，专门帮助用户进行学习和知识管理。你的特点包括：
+
+1. **专业知识**：在多个学科领域都有深入的了解
+2. **教学方法**：能够用简单易懂的方式解释复杂概念
+3. **学习规划**：帮助用户制定合理的学习计划
+4. **问题解答**：耐心回答用户的学术问题
+5. **资源推荐**：推荐相关的学习资源和材料
+
+请始终保持专业、耐心和鼓励的态度，帮助用户实现学习目标。`,
+        icon: '📚',
+        is_active: true,
+        is_default: true
+      })
+      
+      if (learningAgent.status === 'success' && learningAgent.data) {
+        console.log('   ✅ 学习Agent创建成功')
+        setAgents(prev => [learningAgent.data!, ...prev])
+        createdCount++
+      } else {
+        console.error('   ❌ 学习Agent创建失败:', learningAgent.error)
+      }
+      
+      // 创建陪伴Agent
+      console.log('   💝 创建陪伴Agent...')
+      const companionAgent = await agentsService.createAgent({
+        name: '陪伴助手',
+        description: '温暖贴心的生活陪伴和情感支持',
+        prompt: `你是一位温暖贴心的陪伴助手，专门为用户提供情感支持和日常陪伴。你的特点包括：
+
+1. **情感支持**：理解用户的情感需求，提供温暖的回应
+2. **积极倾听**：认真倾听用户的想法和感受
+3. **生活建议**：提供实用的生活建议和解决方案
+4. **情绪调节**：帮助用户缓解压力和负面情绪
+5. **陪伴聊天**：进行轻松愉快的日常对话
+
+请始终保持温暖、理解和同理心，成为用户可以信赖的朋友。`,
+        icon: '💝',
+        is_active: true
+      })
+      
+      if (companionAgent.status === 'success' && companionAgent.data) {
+        console.log('   ✅ 陪伴Agent创建成功')
+        setAgents(prev => [...prev, companionAgent.data!])
+        createdCount++
+      } else {
+        console.error('   ❌ 陪伴Agent创建失败:', companionAgent.error)
+      }
+      
+      // 创建计划Agent
+      console.log('   📅 创建计划Agent...')
+      const planningAgent = await agentsService.createAgent({
+        name: '计划助手',
+        description: '专业的目标规划和时间管理专家',
+        prompt: `你是一位专业的计划助手，专门帮助用户进行目标规划和时间管理。你的特点包括：
+
+1. **目标设定**：帮助用户设定明确、可实现的目标
+2. **计划制定**：制定详细的执行计划和时间表
+3. **进度跟踪**：帮助用户跟踪目标完成进度
+4. **时间管理**：提供高效的时间管理方法和技巧
+5. **问题解决**：识别计划执行中的问题并提供解决方案
+
+请始终保持专业、理性和有条理的态度，帮助用户提高效率和实现目标。`,
+        icon: '📅',
+        is_active: true
+      })
+      
+      if (planningAgent.status === 'success' && planningAgent.data) {
+        console.log('   ✅ 计划Agent创建成功')
+        setAgents(prev => [...prev, planningAgent.data!])
+        createdCount++
+      } else {
+        console.error('   ❌ 计划Agent创建失败:', planningAgent.error)
+      }
+      
+      // 显示结果
+      if (createdCount > 0) {
+        console.log(`✅ [设置] 默认Agent创建完成，成功创建 ${createdCount} 个`)
+        setConnectionStatus("success")
+        setConnectionMessage(`成功创建 ${createdCount} 个默认助手！`)
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 3000)
+      } else {
+        console.error('❌ [设置] 所有默认Agent创建失败')
+        setConnectionStatus("error")
+        setConnectionMessage("创建默认助手失败，请重试")
+        setTimeout(() => {
+          setConnectionStatus("idle")
+          setConnectionMessage("")
+        }, 3000)
+      }
+    } catch (error) {
+      console.error('❌ [设置] 创建默认Agent异常:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`创建失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    }
+  }
+
   const handleExport = () => {
     alert("Data export started...")
   }
@@ -384,6 +833,7 @@ export function SettingsView() {
             variant="outline"
             size="sm"
             className="rounded-full border-stone-200 text-stone-600 bg-transparent hover:bg-stone-50"
+            onClick={() => window.location.href = '/profile'}
           >
             编辑
           </Button>
@@ -472,6 +922,22 @@ export function SettingsView() {
                 <span className={cn("relative flex-1 text-right pr-0.5", aiPanelEnabled ? "text-white" : "text-white/80")}>ON</span>
               </button>
             </div>
+
+            <div
+              className="flex items-center justify-between p-4 hover:bg-stone-50/50 transition-colors cursor-pointer"
+              onClick={() => setShowAgentPanel(true)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-stone-700 font-medium">AI助手管理</span>
+                  <span className="text-xs text-stone-400">管理和编辑AI助手角色</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-stone-300" />
+            </div>
           </div>
         </div>
 
@@ -546,6 +1012,243 @@ export function SettingsView() {
                 >
                   保存设置
                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Agent管理面板 */}
+        {showAgentPanel && (
+          <div className="bg-white border border-stone-100 rounded-2xl shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-stone-800">AI助手管理</p>
+                <p className="text-xs text-stone-400 mt-1">创建、编辑和管理AI助手角色</p>
+              </div>
+              <button
+                onClick={() => setShowAgentPanel(false)}
+                className="p-2 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-100 transition-colors"
+                title="关闭Agent管理面板"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 状态消息显示 */}
+            <div className="min-h-[20px] text-xs text-stone-500">
+              {connectionStatus === "success" && (
+                <span className="text-emerald-500">{connectionMessage || "操作成功"}</span>
+              )}
+              {connectionStatus === "error" && (
+                <span className="text-rose-500">{connectionMessage || "操作失败"}</span>
+              )}
+            </div>
+
+            {agents.length === 0 ? (
+              <div className="text-center py-8">
+                <Bot className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                <p className="text-stone-500 mb-4">暂无AI助手</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => setShowAgentForm(true)}
+                    className="rounded-full"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    创建助手
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCreateDefaultAgents}
+                    className="rounded-full border-stone-200 text-stone-600"
+                  >
+                    创建默认助手
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-stone-600">共 {agents.length} 个助手</p>
+                  <Button
+                    onClick={() => setShowAgentForm(true)}
+                    size="sm"
+                    className="rounded-full"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    新建助手
+                  </Button>
+                </div>
+                
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {agents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      className="rounded-xl border border-stone-100 bg-stone-50 p-3 hover:border-stone-200 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{agent.icon}</span>
+                          <p className="text-sm font-medium text-stone-800">{agent.name}</p>
+                          {agent.is_default && (
+                            <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-1 rounded-full">默认</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditAgent(agent)}
+                            className="p-1 text-stone-400 hover:text-stone-600 rounded hover:bg-stone-100 transition-colors"
+                            title="编辑助手"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </button>
+                          {!agent.is_default && (
+                            <button
+                              onClick={() => handleSetDefaultAgent(agent.id)}
+                              className="p-1 text-stone-400 hover:text-emerald-600 rounded hover:bg-emerald-50 transition-colors"
+                              title="设为默认"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAgent(agent.id)}
+                            className="p-1 text-stone-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                            title="删除助手"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-stone-400 truncate">{agent.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Agent编辑表单 */}
+        {showAgentForm && (
+          <div className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#fffdf5] rounded-3xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-serif text-xl text-stone-800">
+                    {editingAgent ? '编辑AI助手' : '创建AI助手'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowAgentForm(false)
+                      setEditingAgent(null)
+                      setAgentForm({
+                        name: '',
+                        description: '',
+                        prompt: '',
+                        icon: '🤖',
+                        is_active: true,
+                        is_default: false
+                      })
+                    }}
+                    className="p-2 hover:bg-stone-100 rounded-full transition-colors"
+                    title="关闭表单"
+                  >
+                    <X className="w-5 h-5 text-stone-500" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-stone-700">助手名称</label>
+                    <Input
+                      value={agentForm.name}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="输入助手名称"
+                      className="bg-white border-stone-200 focus:border-stone-400 focus:ring-stone-400"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-stone-700">描述</label>
+                    <Input
+                      value={agentForm.description}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="简短描述助手的功能"
+                      className="bg-white border-stone-200 focus:border-stone-400 focus:ring-stone-400"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-stone-700">图标</label>
+                    <Input
+                      value={agentForm.icon}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, icon: e.target.value }))}
+                      placeholder="选择一个emoji图标"
+                      className="bg-white border-stone-200 focus:border-stone-400 focus:ring-stone-400"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-stone-700">系统提示词</label>
+                    <textarea
+                      value={agentForm.prompt}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, prompt: e.target.value }))}
+                      placeholder="定义助手的角色、性格和功能..."
+                      className="w-full h-32 px-3 py-2 border border-stone-200 rounded-lg bg-white focus:border-stone-400 focus:ring-stone-400 resize-none text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={agentForm.is_active}
+                        onChange={(e) => setAgentForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                        className="rounded border-stone-300"
+                      />
+                      启用助手
+                    </label>
+                    {!editingAgent && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={agentForm.is_default}
+                          onChange={(e) => setAgentForm(prev => ({ ...prev, is_default: e.target.checked }))}
+                          className="rounded border-stone-300"
+                        />
+                        设为默认
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowAgentForm(false)
+                        setEditingAgent(null)
+                        setAgentForm({
+                          name: '',
+                          description: '',
+                          prompt: '',
+                          icon: '🤖',
+                          is_active: true,
+                          is_default: false
+                        })
+                      }}
+                      className="rounded-full border-stone-200 text-stone-600"
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      onClick={editingAgent ? handleUpdateAgent : handleCreateAgent}
+                      className="rounded-full"
+                      disabled={!agentForm.name.trim() || !agentForm.prompt.trim()}
+                    >
+                      {editingAgent ? '更新助手' : '创建助手'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

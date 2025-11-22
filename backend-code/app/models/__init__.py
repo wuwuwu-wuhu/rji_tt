@@ -5,6 +5,7 @@ from .entertainment import Entertainment, Favorite
 from .goal import Goal, GoalLog
 from .schedule import Schedule
 from .chat import ChatMessage
+from .agent import Agent, agent
 
 __all__ = [
     "User",
@@ -15,5 +16,7 @@ __all__ = [
     "Goal",
     "GoalLog",
     "Schedule",
-    "ChatMessage"
+    "ChatMessage",
+    "Agent",
+    "agent"
 ]

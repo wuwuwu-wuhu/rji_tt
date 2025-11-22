@@ -35,6 +35,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     assistant_config_id: Optional[int] = None
     use_knowledge_base: Optional[bool] = True
+    agent_id: Optional[int] = None
 
 
 class ChatResponse(BaseModel):

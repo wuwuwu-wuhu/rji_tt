@@ -550,3 +550,165 @@ async def set_default_config(
     db.commit()
     
     return {"message": "Default config set successfully"}
+
+
+@router.post("/generate-study-plan", response_model=dict)
+async def generate_study_plan(
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """AI生成学习计划"""
+    try:
+        # 获取用户的默认助手配置
+        assistant_cfg = assistant_config.get_default_by_user(db, user_id=current_user.id)
+        if not assistant_cfg:
+            raise HTTPException(status_code=404, detail="No default assistant config found")
+        
+        # 获取用户配置的API信息
+        api_config = assistant_cfg.config or {}
+        vendor_url = api_config.get("vendor_url")
+        api_key = api_config.get("api_key")
+        
+        # 🔍 学习计划生成的详细调试信息
+        print(f"\n🔍 [学习计划生成] 开始生成学习计划:")
+        print(f"   👤 用户ID: {current_user.id}")
+        print(f"   📋 助手配置ID: {assistant_cfg.id}")
+        print(f"   🤖 配置的模型: {assistant_cfg.model}")
+        print(f"   🔗 供应商URL: {vendor_url}")
+        print(f"   🔑 API密钥状态: {'已设置' if api_key else '未设置'}")
+        
+        logger.info(f"学习计划生成 - 用户ID: {current_user.id}")
+        logger.info(f"学习计划生成 - 助手配置ID: {assistant_cfg.id}")
+        logger.info(f"学习计划生成 - 模型: {assistant_cfg.model}")
+        
+        # 创建使用用户配置的服务实例
+        if vendor_url and api_key:
+            print(f"   ✅ 使用自定义供应商: {vendor_url}")
+            logger.info(f"学习计划生成 - 使用自定义供应商: {vendor_url}")
+            ai_service = openai_service.__class__(api_key=api_key, base_url=vendor_url)
+        else:
+            print(f"   ⚠️  使用默认OpenAI服务")
+            logger.info(f"学习计划生成 - 使用默认OpenAI服务")
+            ai_service = openai_service
+        
+        # 获取用户需求
+        user_requirement = request.get("prompt", "请为我生成一个通用的学习计划，适合初学者入门")
+        
+        # 获取用户知识库上下文，提供个性化信息
+        knowledge_context = await get_knowledge_context(db, current_user.id, user_requirement)
+        
+        # 构建优化的学习计划生成系统提示（更简洁）
+        system_prompt = """学习计划生成助手。根据用户需求生成JSON格式学习计划。
+
+格式要求：
+{
+  "title": "简短标题",
+  "priority": "High/Medium/Low",
+  "tasks": [
+    {"title": "任务1", "duration": "30m"},
+    {"title": "任务2", "duration": "1h"}
+  ]
+}
+
+要求：3-5个任务，总时长2-6小时，循序渐进。只返回JSON，无其他文字。"""
+
+        # 构建消息，包含知识库上下文
+        messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+        
+        # 如果有知识库上下文，添加到用户消息中
+        if knowledge_context:
+            user_content = f"用户需求：{user_requirement}\n\n用户背景信息：\n{knowledge_context}"
+        else:
+            user_content = f"用户需求：{user_requirement}"
+        
+        messages.append({"role": "user", "content": user_content})
+        
+        print(f"   📤 发送学习计划生成请求...")
+        print(f"   📝 用户需求: {user_requirement}")
+        print(f"   📚 知识库上下文: {'有' if knowledge_context else '无'}")
+        
+        # 调用AI API，优化参数设置
+        response = await ai_service.chat_completion(
+            messages=messages,
+            model=assistant_cfg.model,
+            temperature=0.3,  # 稍微提高温度，加快生成速度
+            max_tokens=500,   # 减少max_tokens，因为学习计划不需要太长
+            top_p=0.9,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+            timeout=120  # 减少超时时间到2分钟，因为优化后应该更快
+        )
+        
+        ai_content = response["choices"][0]["message"]["content"].strip()
+        tokens_used = response["usage"]["total_tokens"]
+        model_used = response["model"]
+        
+        print(f"   ✅ AI生成成功!")
+        print(f"   📝 生成内容: {ai_content[:200]}...")
+        print(f"   📊 Token使用: {tokens_used}")
+        print(f"   🤖 使用模型: {model_used}")
+        
+        logger.info(f"学习计划生成成功 - Token使用: {tokens_used}")
+        logger.info(f"学习计划生成成功 - 模型: {model_used}")
+        
+        # 尝试解析JSON，如果失败则返回原始内容
+        try:
+            # 清理可能的markdown格式
+            if ai_content.startswith("```json"):
+                ai_content = ai_content.replace("```json", "").replace("```", "").strip()
+            
+            parsed_plan = eval(ai_content)  # 使用eval而不是json.parse，因为AI可能返回单引号
+            
+            # 验证必要字段
+            if not isinstance(parsed_plan, dict):
+                raise ValueError("返回的不是字典格式")
+            
+            if "title" not in parsed_plan or "priority" not in parsed_plan or "tasks" not in parsed_plan:
+                raise ValueError("缺少必要字段")
+            
+            if not isinstance(parsed_plan["tasks"], list):
+                raise ValueError("tasks字段不是列表")
+            
+            # 验证每个任务
+            for task in parsed_plan["tasks"]:
+                if not isinstance(task, dict) or "title" not in task or "duration" not in task:
+                    raise ValueError("任务格式不正确")
+            
+            print(f"   ✅ JSON解析成功，格式正确")
+            
+            return {
+                "status": "success",
+                "data": parsed_plan,
+                "tokens_used": tokens_used,
+                "model": model_used
+            }
+            
+        except Exception as parse_error:
+            print(f"   ⚠️  JSON解析失败: {str(parse_error)}")
+            print(f"   📝 原始内容: {ai_content}")
+            logger.error(f"学习计划生成 - JSON解析失败: {str(parse_error)}")
+            
+            # 如果解析失败，返回原始内容让前端处理
+            return {
+                "status": "parse_error",
+                "raw_content": ai_content,
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "error": f"JSON解析失败: {str(parse_error)}"
+            }
+        
+    except Exception as e:
+        # 🔍 详细的错误信息输出
+        print(f"\n❌ [学习计划生成] 异常详情:")
+        print(f"   🔍 错误类型: {type(e).__name__}")
+        print(f"   📝 错误消息: {str(e)}")
+        print(f"   📊 错误详情: {repr(e)}")
+        print(f"   👤 用户ID: {current_user.id}")
+        
+        logger.error(f"学习计划生成异常 - 类型: {type(e).__name__}, 消息: {str(e)}")
+        logger.error(f"用户ID: {current_user.id}")
+        
+        raise HTTPException(status_code=500, detail=f"学习计划生成失败: {str(e)}")

@@ -144,6 +144,11 @@ export class AiService {
   async setDefaultConfig(configId: number): Promise<ApiResponse<{ message: string }>> {
     return api.post<{ message: string }>(`/api/settings/assistants/${configId}/set-default`);
   }
+
+  // 生成学习计划
+  async generateStudyPlan(prompt: string): Promise<ApiResponse<any>> {
+    return api.post<any>('/api/ai/generate-study-plan', { prompt });
+  }
 }
 
 // 创建AI服务实例
@@ -162,4 +167,5 @@ export const ai = {
   updateAssistantConfig: (configId: number, config: AssistantConfigUpdate) => aiService.updateAssistantConfig(configId, config),
   deleteAssistantConfig: (configId: number) => aiService.deleteAssistantConfig(configId),
   setDefaultConfig: (configId: number) => aiService.setDefaultConfig(configId),
+  generateStudyPlan: (prompt: string) => aiService.generateStudyPlan(prompt),
 };

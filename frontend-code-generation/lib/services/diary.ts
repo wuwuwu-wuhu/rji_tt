@@ -4,7 +4,7 @@ export interface CreateDiaryRequest {
   title: string;
   content: string;
   mood?: string;
-  tags?: string;
+  tags?: string[];
   is_private?: boolean;
 }
 
@@ -12,7 +12,7 @@ export interface UpdateDiaryRequest {
   title?: string;
   content?: string;
   mood?: string;
-  tags?: string;
+  tags?: string[];
   is_private?: boolean;
 }
 
@@ -42,7 +42,7 @@ export class DiaryService {
 
   // 获取单个日记
   async getDiary(id: number): Promise<ApiResponse<Diary>> {
-    return api.get<Diary>(`/api/diary/${id}`);
+    return api.get<Diary>(`/api/diary/item/${id}`);
   }
 
   // 创建日记
@@ -52,12 +52,12 @@ export class DiaryService {
 
   // 更新日记
   async updateDiary(id: number, diaryData: UpdateDiaryRequest): Promise<ApiResponse<Diary>> {
-    return api.put<Diary>(`/api/diary/${id}`, diaryData);
+    return api.put<Diary>(`/api/diary/item/${id}`, diaryData);
   }
 
   // 删除日记
   async deleteDiary(id: number): Promise<ApiResponse<void>> {
-    return api.delete<void>(`/api/diary/${id}`);
+    return api.delete<void>(`/api/diary/item/${id}`);
   }
 
   // 搜索日记
@@ -88,15 +88,6 @@ export class DiaryService {
     return api.post<void>('/api/diary/batch-delete', { ids });
   }
 
-  // 导出日记
-  async exportDiaries(params?: {
-    format?: 'json' | 'csv' | 'pdf';
-    start_date?: string;
-    end_date?: string;
-  }): Promise<ApiResponse<{ download_url: string }>> {
-    return api.get<{ download_url: string }>('/api/diary/export', params);
-  }
-
   // 获取日记标签列表
   async getDiaryTags(): Promise<ApiResponse<string[]>> {
     return api.get<string[]>('/api/diary/tags');
@@ -111,6 +102,106 @@ export class DiaryService {
     percentage: number;
   }[]>> {
     return api.get('/api/diary/mood-stats', params);
+  }
+
+  // 导出日记
+  async exportDiaries(): Promise<void> {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const token = localStorage.getItem('auth_token');
+    
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    try {
+      console.log('📄 [日记服务] 开始导出日记');
+      
+      const response = await fetch(`${API_BASE_URL}/api/diary/export`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`导出失败: ${response.status}`);
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = 'diaries_export.json';
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      console.log('✅ [日记服务] 日记导出成功');
+      
+    } catch (error) {
+      console.error('❌ [日记服务] 日记导出失败:', error);
+      throw error;
+    }
+  }
+
+  // 导入日记
+  async importDiaries(file: File): Promise<{
+    message: string;
+    imported_count: number;
+    skipped_count: number;
+    error_count: number;
+    total_processed: number;
+  }> {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const token = localStorage.getItem('auth_token');
+    
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
+    try {
+      console.log('📄 [日记服务] 开始导入日记');
+      console.log('   📁 文件名:', file.name);
+      console.log('   📊 文件大小:', file.size, 'bytes');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/diary/import`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `导入失败: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ [日记服务] 日记导入成功:', result);
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ [日记服务] 日记导入失败:', error);
+      throw error;
+    }
   }
 }
 

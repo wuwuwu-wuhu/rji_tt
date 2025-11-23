@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { ChevronLeft, Save, Clock, Calendar } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { diaryService } from "@/lib/services/diary"
-import { useMutation } from "@/hooks/use-api"
+import { useMutation, useApi } from "@/hooks/use-api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,23 +14,57 @@ import { toast } from "sonner"
 
 export default function WriteDiaryPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const diaryId = searchParams.get('id')
+  const isEditMode = !!diaryId
+  
   const titleRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLTextAreaElement>(null)
   const [mood, setMood] = useState<string>('')
   const [tags, setTags] = useState<string>('')
   const [isPrivate, setIsPrivate] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+
+  // 获取日记详情（编辑模式）
+  const { data: diaryData, loading: diaryLoading, error: diaryError } = useApi(
+    () => diaryId ? diaryService.getDiary(parseInt(diaryId)) : Promise.resolve({ status: 200, data: null }),
+    {
+      immediate: isEditMode,
+      onSuccess: (diary) => {
+        console.log("🔍 [前端] 加载日记详情:", diary)
+        if (diary) {
+          console.log("📋 [前端] 日记数据:", diary)
+          
+          // 填充表单数据
+          setTimeout(() => {
+            if (titleRef.current) titleRef.current.value = diary.title || ''
+            if (contentRef.current) contentRef.current.value = diary.content || ''
+            setMood(diary.mood || '')
+            setTags(diary.tags ? diary.tags.join(', ') : '')
+            setIsPrivate(diary.is_private || false)
+          }, 100)
+        }
+      },
+      onError: (error) => {
+        console.error("❌ [前端] 加载日记失败:", error)
+        toast.error(`加载日记失败: ${error.message}`)
+      }
+    }
+  )
 
   // 使用mutation hook处理保存操作
   const { mutate: saveDiary, loading, error } = useMutation(
-    (data: { title: string; content: string; mood: string; tags?: string; is_private: boolean }) =>
-      diaryService.createDiary(data),
+    (data: { title: string; content: string; mood: string; tags?: string[]; is_private: boolean }) =>
+      isEditMode && diaryId
+        ? diaryService.updateDiary(parseInt(diaryId), data)
+        : diaryService.createDiary(data),
     {
       onSuccess: () => {
-        toast.success('日记保存成功')
+        toast.success(isEditMode ? '日记更新成功' : '日记保存成功')
         router.push('/')
       },
       onError: (error) => {
-        toast.error(`保存失败: ${error.message}`)
+        toast.error(`${isEditMode ? '更新' : '保存'}失败: ${error.message}`)
       }
     }
   )
@@ -48,7 +82,7 @@ export default function WriteDiaryPage() {
       title,
       content,
       mood,
-      tags: tags || undefined,
+      tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : undefined,
       is_private: isPrivate
     })
   }
@@ -79,16 +113,16 @@ export default function WriteDiaryPage() {
             <ChevronLeft className="w-6 h-6" />
           </Link>
 
-          <span className="font-semibold text-stone-800">写日记</span>
+          <span className="font-semibold text-stone-800">{isEditMode ? '编辑日记' : '写日记'}</span>
 
           <Button
             onClick={handleSave}
-            disabled={loading}
+            disabled={loading || diaryLoading}
             variant="ghost"
             size="sm"
             className="p-2 -mr-2 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
           >
-            {loading ? (
+            {loading || diaryLoading ? (
               <div className="w-5 h-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
             ) : (
               <Save className="w-5 h-5" />
@@ -99,6 +133,23 @@ export default function WriteDiaryPage() {
 
       {/* Editor Content */}
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-8">
+        {/* 加载状态（编辑模式） */}
+        {isEditMode && diaryLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-600" />
+            <span className="ml-3 text-stone-600">加载日记中...</span>
+          </div>
+        )}
+
+        {/* 错误状态（编辑模式） */}
+        {isEditMode && diaryError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-600">加载日记失败: {diaryError.message}</p>
+          </div>
+        )}
+
+        {/* 编辑器内容 */}
+        {(!isEditMode || !diaryLoading) && (
         <div className="space-y-6">
           {/* Meta Info */}
           <div className="flex items-center gap-4 text-sm text-stone-400">
@@ -184,6 +235,7 @@ export default function WriteDiaryPage() {
             </label>
           </div>
         </div>
+        )}
       </main>
     </div>
   )

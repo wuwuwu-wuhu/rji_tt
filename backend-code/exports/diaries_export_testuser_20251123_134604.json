@@ -1,0 +1,23 @@
+{
+  "export_info": {
+    "user_id": 4,
+    "username": "testuser",
+    "export_date": "2025-11-23T05:46:04.042797+00:00",
+    "export_timezone": "UTC",
+    "total_diaries": 1,
+    "format_version": "1.0"
+  },
+  "diaries": [
+    {
+      "id": 15,
+      "title": "时区测试日记",
+      "content": "这是一篇用于测试时区显示的日记。创建时间: 2025-11-23T05:45:59.974186+00:00",
+      "mood": "测试",
+      "tags": "[\"\\u6d4b\\u8bd5\", \"\\u65f6\\u533a\"]",
+      "is_private": false,
+      "created_at": "2025-11-23T05:46:01",
+      "updated_at": null,
+      "timezone": "UTC"
+    }
+  ]
+}

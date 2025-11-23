@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Bell,
   Moon,
@@ -35,6 +35,7 @@ import { useAiAssistant } from "@/contexts/ai-assistant-context"
 import { useAuth } from "@/contexts/auth-context"
 import { ai, AssistantConfig, AssistantConfigCreate } from "@/lib/services/ai"
 import { agentsService, Agent } from "@/lib/services/agents"
+import { diaryService } from "@/lib/services/diary"
 
 type BooleanSettingKey = "knowledgeBase" | "darkMode" | "notifications"
 
@@ -78,6 +79,12 @@ export function SettingsView() {
     is_active: true,
     is_default: false
   })
+
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+  const [showImportResult, setShowImportResult] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { enabled: aiPanelEnabled, setEnabled: setAiPanelEnabled } = useAiAssistant()
   const { user, logout } = useAuth()
@@ -796,8 +803,98 @@ export function SettingsView() {
     }
   }
 
-  const handleExport = () => {
-    alert("Data export started...")
+  const handleExportDiaries = async () => {
+    if (isExporting) return
+    
+    setIsExporting(true)
+    try {
+      console.log('🔍 [设置] 开始导出日记...')
+      await diaryService.exportDiaries()
+      console.log('✅ [设置] 日记导出成功')
+      
+      setConnectionStatus("success")
+      setConnectionMessage("日记导出成功！")
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    } catch (error) {
+      console.error('❌ [设置] 日记导出失败:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`导出失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportDiaries = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    if (isImporting) return
+    
+    setIsImporting(true)
+    try {
+      console.log('🔍 [设置] 开始导入日记:', file.name)
+      
+      const result = await diaryService.importDiaries(file)
+      console.log('📥 [设置] 导入结果:', result)
+      
+      setImportResult(result)
+      setShowImportResult(true)
+      
+      // 显示成功消息
+      if (result.error_count === 0) {
+        setConnectionStatus("success")
+        setConnectionMessage(`导入成功！共导入 ${result.imported_count} 篇日记`)
+      } else {
+        setConnectionStatus("error")
+        setConnectionMessage(`导入完成，成功 ${result.imported_count} 篇，跳过 ${result.skipped_count} 篇，失败 ${result.error_count} 篇`)
+      }
+      
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 5000)
+    } catch (error) {
+      console.error('❌ [设置] 日记导入失败:', error)
+      let errorMessage = '未知错误'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      }
+      
+      setConnectionStatus("error")
+      setConnectionMessage(`导入失败: ${errorMessage}`)
+      setTimeout(() => {
+        setConnectionStatus("idle")
+        setConnectionMessage("")
+      }, 3000)
+    } finally {
+      setIsImporting(false)
+      // 清空文件输入
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
   }
 
   const toggleBooleanSetting = (key: BooleanSettingKey) => {
@@ -1284,26 +1381,54 @@ export function SettingsView() {
 
             <div
               className="flex items-center justify-between p-4 hover:bg-stone-50/50 transition-colors cursor-pointer"
-              onClick={handleExport}
+              onClick={handleExportDiaries}
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600">
                   <Download className="w-4 h-4" />
                 </div>
-                <span className="text-stone-700 font-medium">导出数据</span>
+                <div className="flex flex-col">
+                  <span className="text-stone-700 font-medium">导出日记</span>
+                  <span className="text-xs text-stone-400">将所有日记导出为JSON文件</span>
+                </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-stone-300" />
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 text-stone-400 animate-spin" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-stone-300" />
+              )}
             </div>
 
-            <div className="flex items-center justify-between p-4 hover:bg-stone-50/50 transition-colors cursor-pointer">
+            <div
+              className="flex items-center justify-between p-4 hover:bg-stone-50/50 transition-colors cursor-pointer"
+              onClick={triggerFileInput}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600">
                   <Upload className="w-4 h-4" />
                 </div>
-                <span className="text-stone-700 font-medium">导入数据</span>
+                <div className="flex flex-col">
+                  <span className="text-stone-700 font-medium">导入日记</span>
+                  <span className="text-xs text-stone-400">从JSON文件导入日记数据</span>
+                </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-stone-300" />
+              {isImporting ? (
+                <Loader2 className="w-4 h-4 text-stone-400 animate-spin" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-stone-300" />
+              )}
             </div>
+            
+            {/* 隐藏的文件输入 */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImportDiaries}
+              className="hidden"
+              title="选择要导入的日记文件"
+              aria-label="选择要导入的日记文件"
+            />
           </div>
         </div>
 
@@ -1627,6 +1752,79 @@ export function SettingsView() {
                 className="flex-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
               >
                 确认删除
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 导入结果对话框 */}
+      {showImportResult && importResult && (
+        <div className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                importResult.success ? 'bg-emerald-100' : 'bg-amber-100'
+              }`}>
+                {importResult.success ? (
+                  <Check className="w-5 h-5 text-emerald-600" />
+                ) : (
+                  <Upload className="w-5 h-5 text-amber-600" />
+                )}
+              </div>
+              <div>
+                <h3 className="font-semibold text-stone-800">
+                  {importResult.success ? '导入成功' : '导入完成'}
+                </h3>
+                <p className="text-sm text-stone-500">
+                  {importResult.total ? `共处理 ${importResult.total} 篇日记` : '导入处理完成'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              {importResult.imported > 0 && (
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <Check className="w-4 h-4" />
+                  <span className="text-sm">成功导入 {importResult.imported} 篇日记</span>
+                </div>
+              )}
+              
+              {importResult.skipped > 0 && (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-xs flex items-center justify-center">⊘</span>
+                  <span className="text-sm">跳过 {importResult.skipped} 篇（已存在）</span>
+                </div>
+              )}
+              
+              {importResult.failed > 0 && (
+                <div className="flex items-center gap-2 text-red-600">
+                  <X className="w-4 h-4" />
+                  <span className="text-sm">失败 {importResult.failed} 篇</span>
+                </div>
+              )}
+              
+              {importResult.errors && importResult.errors.length > 0 && (
+                <div className="mt-4 p-3 bg-red-50 rounded-lg">
+                  <p className="text-sm font-medium text-red-800 mb-2">错误详情：</p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {importResult.errors.slice(0, 3).map((error: string, index: number) => (
+                      <p key={index} className="text-xs text-red-600">{error}</p>
+                    ))}
+                    {importResult.errors.length > 3 && (
+                      <p className="text-xs text-red-400">...还有 {importResult.errors.length - 3} 个错误</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowImportResult(false)}
+                className="flex-1 rounded-full"
+              >
+                确定
               </Button>
             </div>
           </div>

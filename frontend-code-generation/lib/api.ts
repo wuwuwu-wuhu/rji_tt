@@ -267,7 +267,7 @@ export interface Diary {
   title: string;
   content: string;
   mood: string;
-  tags?: string;
+  tags?: string[];
   is_private: boolean;
   created_at: string;
   updated_at?: string;

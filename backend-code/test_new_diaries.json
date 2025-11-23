@@ -1,0 +1,31 @@
+{
+  "export_info": {
+    "user_id": 5,
+    "username": "qwer",
+    "export_date": "2025-11-23T01:47:00.967667",
+    "total_diaries": 2,
+    "format_version": "1.0"
+  },
+  "diaries": [
+    {
+      "id": 999,
+      "title": "测试导入日记1",
+      "content": "这是一篇用于测试导入功能的日记，包含了一些测试内容。",
+      "mood": "happy",
+      "tags": ["测试", "导入"],
+      "is_private": false,
+      "created_at": "2025-11-23T01:47:00.967667",
+      "updated_at": "2025-11-23T01:47:00.967667"
+    },
+    {
+      "id": 1000,
+      "title": "测试导入日记2",
+      "content": "这是第二篇测试日记，用于验证批量导入功能是否正常工作。",
+      "mood": "neutral",
+      "tags": ["测试", "批量"],
+      "is_private": true,
+      "created_at": "2025-11-23T01:47:00.967667",
+      "updated_at": "2025-11-23T01:47:00.967667"
+    }
+  ]
+}
